@@ -49,7 +49,7 @@ namespace DahlDesignPropertiesNG
         private readonly DataPluginSettings settings;
         private GameData data;
         private DataSampleEx irData;
-        private SimHubProperties s;
+        private SimHubProperties properties;
         private readonly SizedList<GameData> PrevData = new SizedList<GameData>(10); // We can save 10 previous versions of gamedata.
         
         /// <summary>
@@ -71,7 +71,7 @@ namespace DahlDesignPropertiesNG
         {
             this.pluginManager = pluginManager;
             settings = Settings;
-            s = Props;
+            properties = Props;
             SimHub.Logging.Current.Info("Initializing Calcs Class...");
 
             foreach (int Hz in IntervalController.HzValues) //Initialize the mapping of functions to when they should run.  Each one starts off empty.
@@ -111,7 +111,6 @@ namespace DahlDesignPropertiesNG
         [TargetHz(1)]
         public void SettingsUpdate()
         {
-            SimHub.Logging.Current.Info("UpdateSettings Executed");
             //pluginManager.SetPropertyValue("DDUstartLED", this.GetType(), Settings.DDUstartLED);
             //pluginManager.SetPropertyValue("SW1startLED", this.GetType(), Settings.SW1startLED);
             //pluginManager.SetPropertyValue("DDUEnabled", this.GetType(), Settings.DDUEnabled);
@@ -132,10 +131,10 @@ namespace DahlDesignPropertiesNG
             var LRCold = irData.Telemetry.LRcoldPressure;
             var RRCold = irData.Telemetry.RRcoldPressure;
 
-            s.SetPropertyValue("PitServiceLFPCold", LFCold);
-            s.SetPropertyValue("PitServiceRFPCold", RFCold);
-            s.SetPropertyValue("PitServiceLRPCold", LRCold);
-            s.SetPropertyValue("PitServiceRRPCold", RRCold);
+            properties.SetPropertyValue("PitServiceLFPCold", LFCold);
+            properties.SetPropertyValue("PitServiceRFPCold", RFCold);
+            properties.SetPropertyValue("PitServiceLRPCold", LRCold);
+            properties.SetPropertyValue("PitServiceRRPCold", RRCold);
         }
         [TargetHz(60)]
         public void SmoothGear()
@@ -143,16 +142,14 @@ namespace DahlDesignPropertiesNG
             //----------------------------------------------
             //--------SMOOTH GEAR---------------------------
             //----------------------------------------------
-            // Example of how to look back to compare values over time.
-            var Gear = data.NewData.Gear;
-            
-            if (PrevData.Count < 6)
+            // Example of how to look back to compare values over time.            
+            if (PrevData.Count > 6 && data.NewData.Gear == PrevData[5].NewData.Gear)
             {
-                s.SetPropertyValue("SmoothGear", Gear); // If we dont have 6 cycles of data, just return what we have
+                    properties.SetPropertyValue("SmoothGear", data.NewData.Gear); // we return a smoothed gear because its been static for 5 cycles.
             }
             else
             {
-                s.SetPropertyValue("SmoothGear", PrevData[5].NewData.Gear); // otherwise, we delay this for 6 cycles.
+                    properties.SetPropertyValue("SmoothGear", data.NewData.Gear); //otherwise just return what we have.
             }
 
         }
