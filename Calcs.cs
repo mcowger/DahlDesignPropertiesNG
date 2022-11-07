@@ -1,10 +1,10 @@
-﻿using SimHub.Plugins;
-using System;
+﻿using GameReaderCommon;
+using SimHub.Plugins;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Windows;
+using IRacingReader;
 
 namespace DahlDesignPropertiesNG
 {
@@ -26,6 +26,9 @@ namespace DahlDesignPropertiesNG
     {
         private readonly PluginManager pluginManager;
         private readonly DataPluginSettings settings;
+        private GameData data;
+        private DataSampleEx irData;
+        private SimHubProperties s;
         /// <summary>
         /// A threadsafe dictionary that is indexed by the rate at which to run a function (the key).
         /// The value is a list (that contains 'object' types) of each function that should run.
@@ -41,10 +44,11 @@ namespace DahlDesignPropertiesNG
         /// </summary>
         /// <param name="pluginManager"></param>
         /// <param name="Settings"></param>
-        public Calcs(ref PluginManager pluginManager, ref DataPluginSettings Settings)
+        public Calcs(ref PluginManager pluginManager, ref DataPluginSettings Settings, ref SimHubProperties Props)
         {
             this.pluginManager = pluginManager;
             settings = Settings;
+            s = Props;
             SimHub.Logging.Current.Info("Initializing Calcs Class...");
 
             foreach (int Hz in IntervalController.HzValues) //Initialize the mapping of functions to when they should run.  Each one starts off empty.
@@ -71,13 +75,16 @@ namespace DahlDesignPropertiesNG
                 }
             }
         }
-        /// <summary>
-        /// Updates the Properties for various settings that are likely to be changed during the game.
-        /// </summary>
-        /// <param name="pluginManager"></param>
-        /// <param name="Settings"></param>
+        public void UpdateGameData(ref GameData d)
+        {
+            data = d;
+            if (data?.NewData?.GetRawDataObject() is DataSampleEx)
+            {
+                irData = data.NewData.GetRawDataObject() as DataSampleEx;
+            }
+        }
         [TargetHz(1)]
-        public void UpdateSettings()
+        public void SettingsUpdate()
         {
             SimHub.Logging.Current.Info("UpdateSettings Executed");
             //pluginManager.SetPropertyValue("DDUstartLED", this.GetType(), Settings.DDUstartLED);
@@ -91,6 +98,19 @@ namespace DahlDesignPropertiesNG
             //pluginManager.SetPropertyValue("ARBswapped", this.GetType(), Settings.SupercarSwapPosition);
             //pluginManager.SetPropertyValue("ARBstiffForward", this.GetType(), Settings.SupercarARBDirection);
             //pluginManager.SetPropertyValue("CoupleInCarToPit", this.GetType(), Settings.CoupleInCarToPit);
+        }
+        [TargetHz(1)]
+        public void TireAttributesUpdate()
+        {
+            var LFCold = irData.Telemetry.LFcoldPressure;
+            var RFCold = irData.Telemetry.RFcoldPressure;
+            var LRCold = irData.Telemetry.LRcoldPressure;
+            var RRCold = irData.Telemetry.RRcoldPressure;
+
+            s.SetPropertyValue("PitServiceLFPCold", LFCold);
+            s.SetPropertyValue("PitServiceRFPCold", RFCold);
+            s.SetPropertyValue("PitServiceLRPCold", LRCold);
+            s.SetPropertyValue("PitServiceRRPCold", RRCold);
         }
 
     }

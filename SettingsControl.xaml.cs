@@ -7,14 +7,14 @@ namespace DahlDesignPropertiesNG
     /// </summary>
     public partial class SettingsControl : UserControl
     {
-        public DataPlugin Plugin { get; }
+        public DahlDesignPlugin Plugin { get; }
 
         public SettingsControl()
         {
             InitializeComponent();
         }
 
-        public SettingsControl(DataPlugin plugin) : this()
+        public SettingsControl(DahlDesignPlugin plugin) : this()
         {
             this.Plugin = plugin;
         }
