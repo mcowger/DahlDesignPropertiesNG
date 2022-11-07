@@ -1,13 +1,34 @@
 ﻿using GameReaderCommon;
+using IRacingReader;
 using SimHub.Plugins;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using IRacingReader;
 
 namespace DahlDesignPropertiesNG
 {
+    sealed class SizedList<T> : List<T>
+    {
+        public int FixedCapacity { get; }
+        public SizedList(int fixedCapacity)
+        {
+            this.FixedCapacity = fixedCapacity;
+        }
+
+        /// <summary>
+        /// If the total number of item exceed the capacity, the oldest ones automatically gets removed..
+        /// </summary>
+        public new void Add(T item)
+        {
+            base.Add(item);
+            if (base.Count > FixedCapacity)
+            {
+                base.RemoveAt(0);
+            }
+        }
+    }
     /// <summary>
     /// Custom Attribute Class to allow this Calcs class to automatically contruct the list of functions to run.
     /// </summary>
@@ -29,6 +50,8 @@ namespace DahlDesignPropertiesNG
         private GameData data;
         private DataSampleEx irData;
         private SimHubProperties s;
+        private readonly SizedList<GameData> PrevData = new SizedList<GameData>(10); // We can save 10 previous versions of gamedata.
+        
         /// <summary>
         /// A threadsafe dictionary that is indexed by the rate at which to run a function (the key).
         /// The value is a list (that contains 'object' types) of each function that should run.
@@ -78,11 +101,13 @@ namespace DahlDesignPropertiesNG
         public void UpdateGameData(ref GameData d)
         {
             data = d;
+            PrevData.Add(data); //save the old game data.
             if (data?.NewData?.GetRawDataObject() is DataSampleEx)
             {
                 irData = data.NewData.GetRawDataObject() as DataSampleEx;
             }
         }
+
         [TargetHz(1)]
         public void SettingsUpdate()
         {
@@ -112,6 +137,24 @@ namespace DahlDesignPropertiesNG
             s.SetPropertyValue("PitServiceLRPCold", LRCold);
             s.SetPropertyValue("PitServiceRRPCold", RRCold);
         }
+        [TargetHz(60)]
+        public void SmoothGear()
+        {
+            //----------------------------------------------
+            //--------SMOOTH GEAR---------------------------
+            //----------------------------------------------
+            // Example of how to look back to compare values over time.
+            var Gear = data.NewData.Gear;
+            
+            if (PrevData.Count < 6)
+            {
+                s.SetPropertyValue("SmoothGear", Gear); // If we dont have 6 cycles of data, just return what we have
+            }
+            else
+            {
+                s.SetPropertyValue("SmoothGear", PrevData[5].NewData.Gear); // otherwise, we delay this for 6 cycles.
+            }
 
+        }
     }
 }
