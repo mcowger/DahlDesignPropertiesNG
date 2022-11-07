@@ -1,7 +1,11 @@
 ﻿using GameReaderCommon;
 using SimHub.Plugins;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Windows.Media;
+using IC = DahlDesignPropertiesNG.IntervalController;
 
 namespace DahlDesignPropertiesNG
 {
@@ -11,73 +15,52 @@ namespace DahlDesignPropertiesNG
     public class DataPlugin : IPlugin, IDataPlugin, IWPFSettingsV2
     {
         public DataPluginSettings Settings;
-
-        /// <summary>
-        /// Instance of the current plugin manager
-        /// </summary>
         public PluginManager PluginManager { get; set; }
-
-        /// <summary>
-        /// Gets the left menu icon. Icon must be 24x24 and compatible with black and white display.
-        /// </summary>
         public ImageSource PictureIcon => this.ToIcon(Properties.Resources.sdkmenuicon);
-
+        public string LeftMenuTitle => "Dahl Design NG";
         /// <summary>
-        /// Gets a short plugin title to show in left menu. Return null if you want to use the title as defined in PluginName attribute.
+        /// Counter that updates every loop.  Lets us keep track of where we are in the 60Hz update cycle to not run too much code in the expensive data path.
         /// </summary>
-        public string LeftMenuTitle => "Demo plugin";
+        private int UpdateCounter = 0;
+        private Calcs c;
 
-        /// <summary>
-        /// Called one time per game data update, contains all normalized game data,
-        /// raw data are intentionnally "hidden" under a generic object type (A plugin SHOULD NOT USE IT)
-        ///
-        /// This method is on the critical path, it must execute as fast as possible and avoid throwing any error
-        ///
-        /// </summary>
-        /// <param name="pluginManager"></param>
-        /// <param name="data">Current game data, including current and previous data frame.</param>
+
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
         {
-            // Define the value of our property (declared in init)
-            if (data.GameRunning)
-            {
-
+            if (!(data.GameRunning || data.GameReplay)) {
+                return; //Early return if the game isn't even running or replaying.
             }
-
+            UpdateCounter = ++UpdateCounter == 60 ? 0 : UpdateCounter; //Update the counter every call.
+            foreach (int Hz in IC.HzValues) // For each possible Hz value, give it a shot
+            {
+                if (IC.ShouldRunUpdate(CounterVal: UpdateCounter, Hz: Hz)) //If we should be running this Hz value, get started.  Otherwise move on.
+                {
+                    foreach (MethodInfo m in c.IntervalMethodMapping[Hz]) { // Each method - lets extract it and execute it.
+                        m.Invoke(c, null); //Invoke the method against the class, with no parameters
+                    }
+                }
+            }
         }
 
-        /// <summary>
-        /// Called at plugin manager stop, close/dispose anything needed here !
-        /// Plugins are rebuilt at game change
-        /// </summary>
-        /// <param name="pluginManager"></param>
+        public void Init(PluginManager pluginManager)
+        {
+            SimHub.Logging.Current.Info("Starting DahlDesignProperties NG plugin");
+
+            // Load settings
+            Settings = this.ReadCommonSettings<DataPluginSettings>("GeneralSettings", () => new DataPluginSettings());
+            c = new Calcs(ref pluginManager, ref Settings); // initalize the calcs class.
+        }
         public void End(PluginManager pluginManager)
         {
             // Save settings
             this.SaveCommonSettings("GeneralSettings", Settings);
         }
 
-        /// <summary>
-        /// Returns the settings control, return null if no settings control is required
-        /// </summary>
-        /// <param name="pluginManager"></param>
-        /// <returns></returns>
         public System.Windows.Controls.Control GetWPFSettingsControl(PluginManager pluginManager)
         {
             return new SettingsControl(this);
         }
 
-        /// <summary>
-        /// Called once after plugins startup
-        /// Plugins are rebuilt at game change
-        /// </summary>
-        /// <param name="pluginManager"></param>
-        public void Init(PluginManager pluginManager)
-        {
-            SimHub.Logging.Current.Info("Starting plugin");
 
-            // Load settings
-            Settings = this.ReadCommonSettings<DataPluginSettings>("GeneralSettings", () => new DataPluginSettings());
-        }
     }
 }
